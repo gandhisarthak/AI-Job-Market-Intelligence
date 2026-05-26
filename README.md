@@ -94,4 +94,4 @@ Analytics Engine
        ↓
 Resume Parsing & Matching
        ↓
-Interactive Streamlit Dashboard
+Interactive Streamlit Dashboard# AI-Job-Market-Intelligence-Platform
