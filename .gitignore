@@ -5,3 +5,5 @@ __pycache__/
 data/jobs.csv
 data/jobs_with_skills.csv
 data/skill_counts.csv
+.idea/
+.DS_Store
