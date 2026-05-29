@@ -1,150 +1,122 @@
 import streamlit as st
+
+# MUST BE FIRST
+st.set_page_config(
+    page_title="AI Job Market Intelligence",
+    page_icon="🚀",
+    layout="wide"
+)
+
 import pandas as pd
 import plotly.express as px
 import pdfplumber
+import ollama
+import json
+import subprocess
 from docx import Document
-# =========================
-# CUSTOM STYLING
-# =========================
+
+
 
 st.markdown("""
 <style>
-
-.main {
-    background-color: #0E1117;
-}
-
-h1, h2, h3, h4 {
-    color: white;
-}
-
+.main { background-color: #0E1117; }
+h1, h2, h3, h4 { color: white; }
 [data-testid="metric-container"] {
     background-color: #1E1E1E;
     border: 1px solid #333;
     padding: 15px;
     border-radius: 12px;
 }
-
-.stDataFrame {
-    background-color: white;
-}
-
-section[data-testid="stSidebar"] {
-    background-color: #111827;
-}
-
+.stDataFrame { background-color: white; }
+section[data-testid="stSidebar"] { background-color: #111827; }
 </style>
 """, unsafe_allow_html=True)
-# =========================
-# PAGE CONFIG
-# =========================
 
-st.set_page_config(
-    page_title="AI Job Market Intelligence",
-    layout="wide"
-)
+
 
 st.markdown("""
 # 🚀 AI Job Market Intelligence Platform
-
 ### Real-time AI-powered job analytics, resume matching, and market intelligence
 """)
 
-# =========================
-# LOAD DATA
-# =========================
 
-jobs_df = pd.read_csv("data/jobs.csv")
-skills_df = pd.read_csv("data/skills_analysis.csv")
 
-# =========================
-# SIDEBAR MENU
-# =========================
+try:
+    jobs_df = pd.read_csv("data/jobs.csv")
+except FileNotFoundError:
+    st.error("No job data found. Please run the scraper first:")
+    st.code("python scraper/scrape_jobs.py")
+    st.stop()
+
+try:
+    skills_df = pd.read_csv("data/skills_analysis.csv")
+except FileNotFoundError:
+    st.error("No skills data found. Please run the skill extractor first:")
+    st.code("python backend/extract_skills.py")
+    st.stop()
+
+
 
 page = st.sidebar.radio(
     "Navigation",
-    [
-        "Dashboard",
-        "Resume Matcher",
-        "Job Explorer"
-    ]
+    ["Dashboard", "Resume Matcher", "Job Explorer"]
 )
-
-# =========================
-# SIDEBAR FILTERS
-# =========================
 
 st.sidebar.header("Filters")
 
 locations = jobs_df["location"].dropna().unique()
-
 selected_location = st.sidebar.selectbox(
     "Select Location",
     ["All"] + list(locations)
 )
 
-skill_search = st.sidebar.text_input(
-    "Search Skill"
-)
+skill_search = st.sidebar.text_input("Search Skill")
 
-# =========================
-# FILTER LOGIC
-# =========================
+
 
 filtered_jobs = jobs_df.copy()
 
-# Location filter
 if selected_location != "All":
-
     filtered_jobs = filtered_jobs[
         filtered_jobs["location"] == selected_location
     ]
 
-# Skill filter
 if skill_search:
-
     filtered_jobs = filtered_jobs[
         filtered_jobs["description"].str.contains(
-            skill_search,
-            case=False,
-            na=False
+            skill_search, case=False, na=False
         )
     ]
 
-# =========================
-# DASHBOARD PAGE
-# =========================
+
 
 if page == "Dashboard":
 
-    # =========================
-    # METRICS
-    # =========================
+    if st.button("🔄 Refresh Job Data"):
+        with st.spinner("Scraping latest jobs..."):
+            subprocess.run(
+                ["python", "scraper/scrape_jobs.py"],
+                capture_output=True
+            )
+            subprocess.run(
+                ["python", "backend/extract_skills.py"],
+                capture_output=True
+            )
+            st.success("Data refreshed successfully!")
+            st.rerun()
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric(
-            "Total Jobs",
-            len(jobs_df)
-        )
+        st.metric("Total Jobs", len(jobs_df))
 
     with col2:
-        st.metric(
-            "Unique Skills",
-            len(skills_df)
-        )
+        st.metric("Unique Skills", len(skills_df))
+
     with col3:
-        st.metric(
-            "Top Skill",
-            skills_df.iloc[0]["Skill"]
-        )
+        st.metric("Top Skill", skills_df.iloc[0]["Skill"])
 
-    # =========================
-    # TOP SKILLS CHART
-    # =========================
-
-    st.subheader("🔥 Top Skills")
+    st.subheader("🔥 Top Skills in Demand")
 
     fig = px.bar(
         skills_df.head(15),
@@ -153,46 +125,20 @@ if page == "Dashboard":
         title="Most In-Demand Skills",
         text="Count"
     )
-    fig.update_layout(
-        template="plotly_dark",
-        height=500
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
-
-    # =========================
-    # TOP LOCATIONS
-    # =========================
+    fig.update_layout(template="plotly_dark", height=500)
+    st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("🌍 Top Hiring Locations")
 
-    location_counts = (
-        jobs_df["location"]
-        .value_counts()
-        .head(10)
-    )
+    location_counts = jobs_df["location"].value_counts().head(10)
 
     location_fig = px.pie(
         names=location_counts.index,
         values=location_counts.values,
         title="Top Job Locations"
     )
-    location_fig.update_layout(
-        template="plotly_dark",
-        height=500
-    )
-
-    st.plotly_chart(
-        location_fig,
-        use_container_width=True
-    )
-
-    # =========================
-    # TOP COMPANIES
-    # =========================
+    location_fig.update_layout(template="plotly_dark", height=500)
+    st.plotly_chart(location_fig, use_container_width=True)
 
     st.subheader("🏢 Companies Hiring Most")
 
@@ -201,27 +147,19 @@ if page == "Dashboard":
         .value_counts()
         .reset_index()
     )
+    company_counts.columns = ["Company", "Open Roles"]
+    st.dataframe(company_counts.head(10), hide_index=True)
 
-    company_counts.columns = [
-        "Company",
-        "Open Roles"
-    ]
 
-    st.dataframe(
-        company_counts.head(10),
-        hide_index=True
-    )
-
-# =========================
-# RESUME MATCHER PAGE
-# =========================
 
 if page == "Resume Matcher":
 
     st.subheader("🧠 AI Resume Matcher")
+    st.markdown("Upload your resume and paste a job description to get an AI-powered match analysis.")
+    st.info("💡 Powered by a free local AI model — no API key or cost required.")
 
     uploaded_file = st.file_uploader(
-        "Upload Resume",
+        "Upload Your Resume",
         type=["pdf", "docx", "txt"]
     )
 
@@ -229,162 +167,171 @@ if page == "Resume Matcher":
 
     if uploaded_file is not None:
 
-        # PDF
         if uploaded_file.name.endswith(".pdf"):
-
             with pdfplumber.open(uploaded_file) as pdf:
-
                 for page_pdf in pdf.pages:
                     resume_text += page_pdf.extract_text() or ""
 
-        # DOCX
         elif uploaded_file.name.endswith(".docx"):
-
             doc = Document(uploaded_file)
-
             for para in doc.paragraphs:
                 resume_text += para.text + "\n"
 
-        # TXT
         elif uploaded_file.name.endswith(".txt"):
-
-            resume_text = str(
-                uploaded_file.read(),
-                "utf-8"
-            )
+            resume_text = str(uploaded_file.read(), "utf-8")
 
         st.success("Resume uploaded successfully!")
 
-    # =========================
-    # MATCHING LOGIC
-    # =========================
+    st.markdown("### Paste a Job Description")
+    job_description = st.text_area(
+        "Job Description",
+        height=200,
+        placeholder="Paste the job description here..."
+    )
 
-    if resume_text:
+    if resume_text and job_description:
 
-        match_scores = []
+        if st.button("🤖 Analyse with AI", type="primary"):
 
-        for index, row in jobs_df.iterrows():
+            with st.spinner("AI is analysing your resume... may take 30-60 seconds..."):
 
-            description = str(
-                row["description"]
-            ).lower()
+                try:
+                    response = ollama.chat(
+                        model="llama3.2",
+                        messages=[{
+                            "role": "user",
+                            "content": f"""<INSTRUCTION>
+        You are a JSON generator. Respond with ONLY a JSON object.
+        No introduction. No explanation. No markdown. No code blocks.
+        Start your response with {{ and end with }}.
+        </INSTRUCTION>
 
-            score = 0
+        Compare this resume against this job description.
 
-            matched_skills = []
+        RESUME:
+        {resume_text[:3000]}
 
-            for skill in skills_df["Skill"]:
+        JOB DESCRIPTION:
+        {job_description[:2000]}
 
-                if (
-                    skill.lower() in resume_text.lower()
-                    and skill.lower() in description
-                ):
+        Respond with ONLY this exact JSON structure:
+        {{
+          "match_score": <integer 0-100>,
+          "matching_skills": ["skill1", "skill2"],
+          "missing_skills": ["skill1", "skill2"],
+          "strengths": ["point1", "point2", "point3"],
+          "recommendation": "one sentence honest assessment"
+        }}"""
+                        }]
+                    )
 
-                    score += 1
-                    matched_skills.append(skill)
+                    raw = response['message']['content'].strip()
 
-            match_scores.append(score)
 
-            jobs_df.loc[
-                index,
-                "matched_skills"
-            ] = ", ".join(matched_skills)
+                    if "```json" in raw:
+                        raw = raw.split("```json")[1].split("```")[0].strip()
+                    elif "```" in raw:
+                        raw = raw.split("```")[1].split("```")[0].strip()
 
-        jobs_df["match_score"] = match_scores
+                    # Step 2: Extract just the JSON object
+                    if "{" in raw:
+                        start = raw.index("{")
+                        # If closing brace exists use it, otherwise add it
+                        if "}" in raw:
+                            end = raw.rindex("}") + 1
+                            raw = raw[start:end]
+                        else:
+                            raw = raw[start:] + "}"
 
-        max_score = (
-            max(match_scores)
-            if max(match_scores) > 0
-            else 1
-        )
+                    # Step 3: Parse
+                    result = json.loads(raw)
 
-        jobs_df["match_percentage"] = (
-            jobs_df["match_score"]
-            / max_score * 100
-        ).round(0)
 
-        matched_jobs = jobs_df.sort_values(
-            by="match_score",
-            ascending=False
-        )
+                    st.markdown("---")
 
-        st.subheader("🎯 Best Matching Jobs")
+                    score = result.get("match_score", 0)
+                    color = (
+                        "green" if score >= 70
+                        else "orange" if score >= 50
+                        else "red"
+                    )
 
-        st.dataframe(
-            matched_jobs[
-                [
-                    "title",
-                    "company",
-                    "location",
-                    "match_percentage",
-                    "matched_skills"
-                ]
-            ].head(10),
-            hide_index=True
-        )
-        # =========================
-        # SKILL GAP ANALYSIS
-        # =========================
+                    st.markdown(
+                        f"## Match Score: <span style='color:{color}'>{score}%</span>",
+                        unsafe_allow_html=True
+                    )
 
-        st.subheader("📈 Skill Gap Analysis")
+                    st.info(f"💬 {result.get('recommendation', '')}")
 
-        resume_skills = []
+                    col1, col2 = st.columns(2)
 
-        for skill in skills_df["Skill"]:
+                    with col1:
+                        st.markdown("### ✅ Matching Skills")
+                        for skill in result.get("matching_skills", []):
+                            st.success(skill)
 
-            if skill.lower() in resume_text.lower():
-                resume_skills.append(skill)
+                        st.markdown("### 💪 Your Strengths")
+                        for strength in result.get("strengths", []):
+                            st.info(strength)
 
-        market_skills = skills_df["Skill"].head(15).tolist()
+                    with col2:
+                        st.markdown("### ❌ Missing Skills")
+                        for skill in result.get("missing_skills", []):
+                            st.warning(skill)
 
-        missing_skills = [
-            skill
-            for skill in market_skills
-            if skill not in resume_skills
-        ]
+                except json.JSONDecodeError as e:
+                    st.error("AI returned unexpected format. Click Analyse again.")
+                    with st.expander("Debug info"):
+                        st.code(raw)
 
-        col1, col2 = st.columns(2)
+                except ollama.ResponseError as e:
+                    st.error(f"Ollama error: {e}")
+                    st.info("Make sure Ollama is running: `ollama serve`")
 
-        with col1:
+                except Exception as e:
+                    if "connection" in str(e).lower():
+                        st.error("Cannot connect to Ollama.")
+                        st.info("Run: `ollama serve`")
+                    else:
+                        st.error(f"Unexpected error: {e}")
 
-            st.markdown("### ✅ Skills Found")
+    elif resume_text and not job_description:
+        st.info("Resume uploaded. Now paste a job description above and click Analyse.")
 
-            for skill in resume_skills:
-                st.success(skill)
+    elif not resume_text:
+        st.info("Upload your resume to get started.")
 
-        with col2:
 
-            st.markdown("### ❌ Missing High-Demand Skills")
-
-            for skill in missing_skills:
-                st.warning(skill)
-
-# =========================
-# JOB EXPLORER PAGE
-# =========================
 
 if page == "Job Explorer":
 
     st.subheader("📋 Latest Jobs")
+    st.write(f"Showing **{len(filtered_jobs)}** jobs")
 
-    st.dataframe(
-        filtered_jobs[
-            [
-                "title",
-                "company",
-                "location",
-                "tags"
-            ]
-        ],
-        hide_index=True
-    )
+    for _, row in filtered_jobs.iterrows():
 
-# =========================
-# FOOTER
-# =========================
+        with st.container():
+
+            col1, col2 = st.columns([4, 1])
+
+            with col1:
+                st.markdown(f"### {row['title']}")
+                st.markdown(
+                    f"🏢 **{row['company']}**  |  📍 {row['location']}"
+                )
+                if row.get("tags"):
+                    st.markdown(f"🏷️ `{row['tags']}`")
+
+            with col2:
+                if row.get("job_link"):
+                    st.markdown(
+                        f"[Apply →]({row['job_link']})",
+                        unsafe_allow_html=True
+                    )
+
+            st.markdown("---")
+
+
 
 st.markdown("---")
-
-st.markdown(
-    "Built with Python, APIs, NLP, AI Matching, and Streamlit"
-)
+st.markdown("Built with Python · Ollama LLaMA 3.2 · NLP · Streamlit · Zero Cost")

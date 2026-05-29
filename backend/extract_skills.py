@@ -2,17 +2,13 @@ import pandas as pd
 from collections import Counter
 import re
 
-# =========================
-# LOAD DATA
-# =========================
+
 
 df = pd.read_csv("data/jobs.csv")
 
 print("\nLoaded dataset:", len(df))
 
-# =========================
-# SKILL LIST
-# =========================
+
 
 skills = [
 
@@ -97,9 +93,7 @@ skills = [
 
 ]
 
-# =========================
-# EXTRACT SKILLS
-# =========================
+
 
 all_skills = []
 
@@ -124,9 +118,7 @@ for description in df["description"]:
         ):
             all_skills.append(skill)
 
-# =========================
-# COUNT SKILLS
-# =========================
+
 
 skill_counts = Counter(all_skills)
 
@@ -140,9 +132,7 @@ for skill, count in sorted(
 )[:20]:
     print(f"{skill}: {count}")
 
-# =========================
-# SAVE RESULTS
-# =========================
+
 
 results_df = pd.DataFrame(
     skill_counts.items(),

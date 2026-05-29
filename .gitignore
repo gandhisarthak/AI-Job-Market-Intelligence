@@ -1,4 +1,7 @@
+*.db
 .venv/
 __pycache__/
 *.pyc
-.idea/
+data/jobs.csv
+data/jobs_with_skills.csv
+data/skill_counts.csv
