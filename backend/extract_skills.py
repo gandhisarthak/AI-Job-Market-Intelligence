@@ -101,7 +101,7 @@ for description in df["description"]:
     text = str(description).lower()
 
 
-    # remove noisy navigation text
+    
     text = text.replace("ai auto-apply", "")
     text = text.replace("sign in", "")
     text = text.replace("find jobs", "")
