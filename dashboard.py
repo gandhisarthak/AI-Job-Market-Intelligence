@@ -1,6 +1,7 @@
 import streamlit as st
 
-# MUST BE FIRST
+
+
 st.set_page_config(
     page_title="AI Job Market Intelligence",
     page_icon="🚀",
